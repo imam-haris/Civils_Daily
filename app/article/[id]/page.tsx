@@ -230,7 +230,7 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
 
   const hasCompletedAssessment = !isPremium && messages.some(m =>
     m.role === 'assistant' &&
-    (m.content.includes('reserved for our Premium') || m.content.includes('reserved for PREMIUM'))
+    (/reserved for our Premium/i.test(m.content) || /reserved for PREMIUM/i.test(m.content) || /Upgrade to Premium/i.test(m.content))
   );
 
   const handleSend = async () => {

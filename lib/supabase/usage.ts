@@ -57,11 +57,34 @@ export async function getUserUsage(userId: string): Promise<UserUsage> {
 
 export async function incrementUsage(userId: string) {
   const supabase = createAdminClient();
-  const { error } = await supabase.rpc('increment_usage', { user_id: userId });
   
-  if (error) {
-    // Fallback if RPC doesn't exist yet
-    const { data: current } = await supabase.from('profiles').select('usage_count').eq('id', userId).single();
-    await supabase.from('profiles').update({ usage_count: (current?.usage_count || 0) + 1 }).eq('id', userId);
+  // Try RPC first (best performance/atomicity)
+  const { error: rpcError } = await supabase.rpc('increment_usage', { user_id: userId });
+  
+  if (rpcError) {
+    console.warn('[USAGE] RPC failed, trying direct update:', rpcError.message);
+    
+    // Fallback: manually increment
+    try {
+      const { data: current, error: fetchError } = await supabase
+        .from('profiles')
+        .select('usage_count')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ usage_count: (current?.usage_count || 0) + 1 })
+        .eq('id', userId);
+        
+      if (updateError) throw updateError;
+      console.log('[USAGE] Usage successfully incremented via direct update');
+    } catch (err: any) {
+      console.error('[USAGE] All increment attempts failed:', err.message);
+    }
+  } else {
+    console.log('[USAGE] Usage incremented successfully via RPC');
   }
 }
