@@ -68,10 +68,15 @@ async function classifyArticles(articles: GNewsArticle[], targetCategory: string
   }
 }
 
-// Stable IDs: encode category + position
-function makeArticleId(categorySlug: string, index: number): number {
-  const catIndex = Object.keys(CATEGORIES).indexOf(categorySlug);
-  return (catIndex + 1) * 1000 + index + 1;
+// Stable IDs: simple hash of URL to ensure consistency across environments
+function makeArticleId(url: string): number {
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    const char = url.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash % 100000);
 }
 
 export async function GET(req: NextRequest) {
@@ -166,7 +171,7 @@ function mapArticles(raw: GNewsArticle[], categorySlug: string): Article[] {
       : cat.tag;
       
     return {
-      id: makeArticleId(categorySlug, index),
+      id: makeArticleId(a.url),
       title: a.title,
       summary: a.description || '',
       content: a.content || a.description || '',

@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── System Prompt ──
+    const promptContent = articleContent || "Analyze this article based on the title.";
     const systemPrompt = `You are CogniClash, a critical AI Exam Mentor for competitive exam aspirants. 
 Topic: "${articleTitle}".
 
@@ -84,7 +85,7 @@ User Status: ${usage.is_premium ? "PREMIUM (Full access)" : "FREE (Limited to MC
       }
 
 Article Context:
-${articleContent}
+${promptContent}
 
 1. Initial Message: Provide a 3-facet bulleted summary. Immediately follow with "MCQ 1/6".
 2. MCQ Phase: Guide through 6 MCQs using format "MCQ X/6". MCQs must be of High-Difficulty and Highly Analytical style (e.g., "Consider the following statements").
@@ -101,6 +102,7 @@ Difficulty: Very High.
 Style: Senior Civil Services level, analytical, authoritative. DO NOT use the term "UPSC".`;
 
     // ── OpenAI Call ──
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [

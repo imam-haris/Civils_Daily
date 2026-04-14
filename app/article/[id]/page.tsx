@@ -33,7 +33,6 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
   const [isPremium, setIsPremium] = useState(false);
   const [remaining, setRemaining] = useState(5);
   const [limitReached, setLimitReached] = useState(false);
-  const [isCheckingUsage, setIsCheckingUsage] = useState(true);
 
   const [mounted, setMounted] = useState(false);
   const [params, setParams] = useState<{ id: string } | null>(null);
@@ -78,11 +77,7 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
           }
         } catch (e) {
           console.error('[USAGE] Failed to fetch usage:', e);
-        } finally {
-          setIsCheckingUsage(false);
         }
-      } else {
-        setIsCheckingUsage(false);
       }
     };
     checkUser();
@@ -139,50 +134,47 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
   }, [params?.id, category]);
 
   // Kick off AI summary once article is loaded
-  useEffect(() => {
-    if (article && mounted && messages.length === 0 && !isCheckingUsage) {
-      // If user hit limit, don't auto-fetch
-      if (limitReached) {
+  const fetchInitialSummary = async () => {
+    if (!article || !mounted || messages.length > 0 || limitReached) return;
+    
+    setIsGatheringSummary(true);
+    console.log(`[CLIENT] Requesting AI summary for: ${article.title}`);
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Please provide a summary of the article and start my assessment phase with the first MCQ.' }],
+          articleTitle: article.title,
+          articleContent: article.content || article.summary || "No content available. Analyze based on title."
+        }),
+      });
+      const data = await response.json();
+
+      // Handle limit reached response
+      if (response.status === 402 && data.error === 'LIMIT_REACHED') {
+        setLimitReached(true);
+        setRemaining(0);
         return;
       }
-      const fetchInitialSummary = async () => {
-        setIsGatheringSummary(true);
-        console.log(`[CLIENT] Requesting AI summary for: ${article.title}`);
-        try {
-          const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [{ role: 'user', content: 'Please provide a summary of the article and start my assessment phase with the first MCQ.' }],
-              articleTitle: article.title,
-              articleContent: article.content
-            }),
-          });
-          const data = await response.json();
 
-          // Handle limit reached response
-          if (response.status === 402 && data.error === 'LIMIT_REACHED') {
-            setLimitReached(true);
-            setRemaining(0);
-            setIsGatheringSummary(false);
-            return;
-          }
+      if (data.content) {
+        setMessages([{ role: 'assistant', content: data.content }]);
+        setRemaining(prev => Math.max(0, prev - 1));
+      } else {
+        console.warn('[CLIENT] AI response empty or error:', data.error);
+        setMessages([{ role: 'assistant', content: data.error ? `**Mentor Hub:** ${data.error}` : "I've analyzed the article. What would you like to discuss?" }]);
+      }
+    } catch (error) {
+      console.error('[CLIENT] AI summary fetch error:', error);
+      setMessages([{ role: 'assistant', content: "Failed to connect to the mentor. Please click 'Sync Briefing' or refresh to try again." }]);
+    } finally {
+      setIsGatheringSummary(false);
+    }
+  };
 
-          if (data.content) {
-            setMessages([{ role: 'assistant', content: data.content }]);
-            // Decrement local remaining count
-            setRemaining(prev => Math.max(0, prev - 1));
-          } else {
-            console.warn('[CLIENT] AI response empty, using fallback');
-            setMessages([{ role: 'assistant', content: "I've analyzed the article. What would you like to discuss?" }]);
-          }
-        } catch (error) {
-          console.error('[CLIENT] AI summary fetch error:', error);
-          setMessages([{ role: 'assistant', content: "Sorry, I couldn't generate a summary. How can I help you with this article?" }]);
-        } finally {
-          setIsGatheringSummary(false);
-        }
-      };
+  useEffect(() => {
+    if (article && mounted && messages.length === 0 && !limitReached && !isGatheringSummary) {
       fetchInitialSummary();
     }
   }, [article, mounted, messages.length, limitReached]);
@@ -372,7 +364,7 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
               "Strategic Overview: Initial analysis suggests a significant shift in diplomatic posture. Aspirants should focus on the geopolitical ripple effects described below."
             </div>
 
-            {article.content.split('\n\n').slice(0, 3).map((para, i) => (
+            {(article.content || article.summary || "No detailed content available for this brief.").split('\n\n').slice(0, 5).map((para, i) => (
               <p key={i}>{para}</p>
             ))}
 
@@ -425,13 +417,13 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleSyncReport()}
-                disabled={isSyncing || messages.length < 2}
+                onClick={() => messages.length > 0 ? handleSyncReport() : fetchInitialSummary()}
+                disabled={isSyncing || (messages.length === 0 && isGatheringSummary)}
                 className={`h-8 text-[11px] font-black border-blue-200 transition-all ${hasSynced ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'text-blue-600 hover:bg-blue-50'
                   }`}
               >
-                {isSyncing ? <RefreshCw size={12} className="animate-spin mr-1.5" /> : hasSynced ? <CheckCircle2 size={12} className="mr-1.5" /> : <RefreshCw size={12} className="mr-1.5" />}
-                {hasSynced ? 'SYNCED' : 'SYNC BRIEFING'}
+                {isSyncing || isGatheringSummary ? <RefreshCw size={12} className="animate-spin mr-1.5" /> : hasSynced ? <CheckCircle2 size={12} className="mr-1.5" /> : <RefreshCw size={12} className="mr-1.5" />}
+                {hasSynced ? 'SYNCED' : messages.length > 0 ? 'SYNC BRIEFING' : 'RETRY ANALYSIS'}
               </Button>
               <Link href="/dashboard">
                 <Button variant="ghost" size="sm" className="h-8 text-[11px] font-bold text-muted-foreground hover:text-blue-600 gap-1.5 cursor-pointer">
