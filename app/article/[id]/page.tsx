@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, use, useRef } from 'react';
+import { useState, useEffect, use, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -228,10 +228,33 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
     }
   };
 
-  const hasCompletedAssessment = !isPremium && messages.some(m =>
-    m.role === 'assistant' &&
-    (/reserved for our Premium/i.test(m.content) || /reserved for PREMIUM/i.test(m.content) || /Upgrade to Premium/i.test(m.content))
-  );
+  const hasCompletedAssessment = useMemo(() => {
+    if (isPremium || messages.length === 0) return false;
+
+    // 1. Check for standard premium keywords as a fallback
+    const hasPremiumKeyword = messages.some(m =>
+      m.role === 'assistant' &&
+      (/reserved for our Premium/i.test(m.content) || /reserved for PREMIUM/i.test(m.content) || /Upgrade to Premium/i.test(m.content))
+    );
+    if (hasPremiumKeyword) return true;
+
+    // 2. Strict check: If assistant has responded AFTER "MCQ 6/6" was sent
+    let mcq6Index = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant' && messages[i].content?.includes('MCQ 6/6')) {
+        mcq6Index = i;
+        break;
+      }
+    }
+
+    if (mcq6Index !== -1) {
+      // If there's an assistant message at a higher index than the MCQ 6 prompt,
+      // it means the assistant has provided feedback for MCQ 6. Assessment is DONE.
+      return messages.slice(mcq6Index + 1).some(m => m.role === 'assistant');
+    }
+
+    return false;
+  }, [messages, isPremium]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading || !article) return;

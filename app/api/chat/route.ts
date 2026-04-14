@@ -55,24 +55,28 @@ export async function POST(req: NextRequest) {
 
     // ── Strict Free Restriction After MCQs ──
     if (!usage.is_premium && !isFirstMessage) {
-      const assistantMessages = messages.filter(
-        (m: any) => m.role === "assistant"
-      );
+      // Find the index of the LAST assistant message that contains "MCQ 6/6"
+      let mcq6Index = -1;
+      for (let i = (messages || []).length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant' && messages[i].content?.includes('MCQ 6/6')) {
+          mcq6Index = i;
+          break;
+        }
+      }
 
-      const hasCompletedMCQs = assistantMessages.some((m: any) =>
-        m.content?.includes("MCQ 6/6")
-      );
-
-      const hasReceivedPremiumNotice = assistantMessages.some((m: any) =>
-        m.content?.includes("reserved for PREMIUM")
-      );
-
-      if (hasCompletedMCQs && hasReceivedPremiumNotice) {
-        return NextResponse.json({
-          role: "assistant",
-          content:
-            "You've completed the assessment phase for this article. Deep subjective discussion and mains-evaluation is reserved for our Premium members. Upgrade to Premium (₹199/mo) to unlock expert analysis and answer writing evaluation for this topic!",
-        });
+      if (mcq6Index !== -1) {
+        // Check if there is any assistant message AFTER mcq6Index
+        // The assistant message at mcq6Index is the one ASKING the 6th MCQ.
+        // The user message after it is the ANSWER.
+        // If there is another assistant message after THAT, it means the assistant has responded to the answer.
+        const subsequentAssistantMessage = messages.slice(mcq6Index + 1).find((m: any) => m.role === 'assistant');
+        
+        if (subsequentAssistantMessage) {
+          return NextResponse.json({
+            role: "assistant",
+            content: "You've completed the assessment phase for this article. Deep subjective discussion and mains-evaluation is reserved for our Premium members. Upgrade to Premium (₹199/mo) to unlock expert analysis and answer writing evaluation for this topic!",
+          });
+        }
       }
     }
 
