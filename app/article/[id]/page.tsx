@@ -33,6 +33,7 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
   const [isPremium, setIsPremium] = useState(false);
   const [remaining, setRemaining] = useState(5);
   const [limitReached, setLimitReached] = useState(false);
+  const [isCheckingUsage, setIsCheckingUsage] = useState(true);
 
   const [mounted, setMounted] = useState(false);
   const [params, setParams] = useState<{ id: string } | null>(null);
@@ -77,7 +78,11 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
           }
         } catch (e) {
           console.error('[USAGE] Failed to fetch usage:', e);
+        } finally {
+          setIsCheckingUsage(false);
         }
+      } else {
+        setIsCheckingUsage(false);
       }
     };
     checkUser();
@@ -135,7 +140,7 @@ export default function ArticleDetail({ params: paramsPromise, searchParams: sea
 
   // Kick off AI summary once article is loaded
   useEffect(() => {
-    if (article && mounted && messages.length === 0) {
+    if (article && mounted && messages.length === 0 && !isCheckingUsage) {
       // If user hit limit, don't auto-fetch
       if (limitReached) {
         return;

@@ -10,6 +10,8 @@ export async function getUserUsage(userId: string): Promise<UserUsage> {
   const supabase = createAdminClient();
   const today = new Date().toISOString().split('T')[0];
 
+  console.log(`[USAGE] Fetching usage for user: ${userId}, today: ${today}`);
+
   const { data, error } = await supabase
     .from('profiles')
     .select('is_premium, usage_count, last_used_date')
@@ -17,17 +19,17 @@ export async function getUserUsage(userId: string): Promise<UserUsage> {
     .maybeSingle();
 
   if (error) {
-    if (error.message.includes('does not exist')) {
-      console.warn('[USAGE] Database columns missing. Please run the migration SQL. Defaulting to Free.');
-      return { is_premium: false, usage_count: 0, last_used_date: today };
-    }
     console.error('[USAGE] Fetch error:', error.message);
+    // If table missing, we can't do much, return default to not block user but log it
     return { is_premium: false, usage_count: 0, last_used_date: today };
   }
 
   // If new user or date mismatch, reset count (but keep premium status)
   if (!data || data.last_used_date !== today) {
-    // Upsert to reset for today
+    const isPremium = data?.is_premium ?? false;
+    console.log(`[USAGE] Resetting usage for user: ${userId}. Reason: ${!data ? 'No data' : `Date mismatch (${data.last_used_date} vs ${today})`}`);
+    
+    // Upsert to reset for today - explicitly handle conflict on 'id'
     try {
       const { error: upsertError } = await supabase
         .from('profiles')
@@ -35,33 +37,48 @@ export async function getUserUsage(userId: string): Promise<UserUsage> {
           id: userId,
           last_used_date: today,
           usage_count: 0,
-          is_premium: data?.is_premium ?? false
-        });
+          is_premium: isPremium
+        }, { onConflict: 'id' });
       
       if (upsertError) {
-        if (upsertError.message.includes('does not exist')) {
-           console.warn('[USAGE] Cannot update usage: columns missing.');
-        } else {
-           console.error('[USAGE] Upsert error:', upsertError.message);
-        }
+        console.error('[USAGE] Upsert error during reset:', upsertError.message);
+        // If upsert failed, we still return 0 but the DB might be out of sync
       }
     } catch (e) {
-      console.error('[USAGE] Upsert exception:', e);
+      console.error('[USAGE] Upsert exception during reset:', e);
     }
     
-    return { is_premium: data?.is_premium ?? false, usage_count: 0, last_used_date: today };
+    return { is_premium: isPremium, usage_count: 0, last_used_date: today };
   }
 
+  console.log(`[USAGE] Current usage for user ${userId}: ${data.usage_count}/5`);
   return data;
 }
 
 export async function incrementUsage(userId: string) {
   const supabase = createAdminClient();
+  const today = new Date().toISOString().split('T')[0];
+
+  console.log(`[USAGE] Incrementing usage for user: ${userId}`);
+
+  // We want to ensure we update last_used_date too if we are using fallback
   const { error } = await supabase.rpc('increment_usage', { user_id: userId });
   
   if (error) {
-    // Fallback if RPC doesn't exist yet
-    const { data: current } = await supabase.from('profiles').select('usage_count').eq('id', userId).single();
-    await supabase.from('profiles').update({ usage_count: (current?.usage_count || 0) + 1 }).eq('id', userId);
+    console.warn('[USAGE] RPC increment failed, trying manual update:', error.message);
+    // Fallback if RPC doesn't exist yet or fails
+    const { data: current } = await supabase
+      .from('profiles')
+      .select('usage_count, last_used_date, is_premium')
+      .eq('id', userId)
+      .maybeSingle();
+
+    // If no row exists yet at all (unlikely if getUserUsage was called), upsert it
+    await supabase.from('profiles').upsert({ 
+      id: userId, 
+      usage_count: (current?.usage_count || 0) + 1,
+      last_used_date: today,
+      is_premium: current?.is_premium ?? false
+    }, { onConflict: 'id' });
   }
 }

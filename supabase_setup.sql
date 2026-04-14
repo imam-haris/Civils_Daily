@@ -10,7 +10,9 @@ CREATE OR REPLACE FUNCTION increment_usage(user_id UUID)
 RETURNS VOID AS $$
 BEGIN
   UPDATE profiles
-  SET usage_count = usage_count + 1
+  SET 
+    usage_count = usage_count + 1,
+    last_used_date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
   WHERE id = user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
