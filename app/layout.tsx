@@ -55,7 +55,6 @@ export default async function RootLayout({
 
 
             <div className="flex items-center gap-4">
-              <Link href="/evaluation" className="text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors">Answer Evaluation</Link>
 
               {user && isPremium && (
                 <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-[9px] uppercase tracking-widest border-none shadow-sm hidden md:flex">
@@ -70,6 +69,8 @@ export default async function RootLayout({
                   </Button>
                 </Link>
               )}
+              <Link href="/evaluation" className="text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors">Answer Evaluation</Link>
+
               {!user && (
                 <Link href="/pricing">
                   <Button variant="ghost" className="text-sm font-bold text-slate-500 hover:text-blue-600 hidden md:inline-flex rounded-xl">
