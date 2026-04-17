@@ -24,13 +24,12 @@ const FREE_FEATURES = [
 
 const PREMIUM_FEATURES = [
   { text: 'Unlimited AI Summaries', included: true, icon: Sparkles },
-  { text: 'MCQ practice (6 per article)', included: true, icon: Target },
+  { text: 'MCQ practice ', included: true, icon: Target },
   { text: 'Daily Quiz access', included: true, icon: Zap },
   { text: 'Category-wise news browsing', included: true, icon: Star },
   { text: 'Subjective discussion & deep analysis', included: true, icon: MessageSquare },
   { text: 'AI answer evaluation & scoring', included: true, icon: BrainCircuit },
   { text: 'Mains-style writing practice', included: true, icon: FileText },
-  { text: 'Priority support', included: true, icon: Shield },
 ];
 
 export default function PricingPage() {
@@ -123,9 +122,8 @@ export default function PricingPage() {
                 const Icon = feature.icon;
                 return (
                   <div key={i} className={`flex items-center gap-3 py-2 ${!feature.included ? 'opacity-40' : ''}`}>
-                    <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
-                      feature.included ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
-                    }`}>
+                    <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${feature.included ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
+                      }`}>
                       {feature.included ? <Check size={14} /> : <X size={14} />}
                     </div>
                     <span className={`text-sm font-semibold ${feature.included ? 'text-slate-700' : 'text-slate-400 line-through'}`}>
@@ -155,7 +153,7 @@ export default function PricingPage() {
             {/* Glow effect */}
             <div className="absolute top-0 right-0 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-400/10 rounded-full blur-3xl" />
-            
+
             <CardHeader className="space-y-4 pb-6 relative">
               <div className="flex items-center justify-between">
                 <Badge className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black uppercase tracking-widest text-[10px] border-none shadow-lg shadow-blue-200">
@@ -207,7 +205,7 @@ export default function PricingPage() {
                     </Button>
                   </Link>
                 ) : (
-                  <Button 
+                  <Button
                     className="w-full py-6 rounded-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-xl shadow-blue-200 group"
                     onClick={() => {
                       // Placeholder for payment integration (Razorpay/Stripe)

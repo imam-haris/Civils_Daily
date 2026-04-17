@@ -52,7 +52,11 @@ export default async function RootLayout({
             </Link>
 
 
+
+
             <div className="flex items-center gap-4">
+              <Link href="/evaluation" className="text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors">Answer Evaluation</Link>
+
               {user && isPremium && (
                 <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-[9px] uppercase tracking-widest border-none shadow-sm hidden md:flex">
                   <Crown size={10} className="mr-1" /> Premium
