@@ -1,15 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crown, Check, X, Sparkles, BrainCircuit, Target,
-  MessageSquare, FileText, Shield, Zap, Star, ArrowRight, Loader2
+  MessageSquare, FileText, Shield, Zap, Star, ArrowRight, Loader2,
+  Upload, Camera
 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 const FREE_FEATURES = [
   { text: '5 AI Summaries per day', included: true, icon: FileText },
@@ -33,9 +35,13 @@ const PREMIUM_FEATURES = [
 ];
 
 export default function PricingPage() {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showUPI, setShowUPI] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -58,6 +64,37 @@ export default function PricingPage() {
     };
     checkUser();
   }, []);
+
+  const handleUpgrade = async () => {
+    if (!paymentScreenshot) {
+      alert("Please upload the payment screenshot first.");
+      return;
+    }
+
+    setIsUpgrading(true);
+    try {
+      const formData = new FormData();
+      formData.append('screenshot', paymentScreenshot);
+
+      const res = await fetch('/api/payment-request', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.ok) {
+        setShowUPI(false);
+        setPaymentScreenshot(null);
+        alert("Success! Your payment request has been received. Your account will be activated within 24 hrs after verification.");
+      } else {
+        const error = await res.json();
+        throw new Error(error.error || "Verification failed");
+      }
+    } catch (e: any) {
+      alert(e.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
 
   return (
     <div className="py-12 md:py-20 space-y-16 min-h-screen">
@@ -205,12 +242,10 @@ export default function PricingPage() {
                     </Button>
                   </Link>
                 ) : (
+
                   <Button
                     className="w-full py-6 rounded-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-xl shadow-blue-200 group"
-                    onClick={() => {
-                      // Placeholder for payment integration (Razorpay/Stripe)
-                      alert('Payment integration coming soon! Contact admin to activate premium.');
-                    }}
+                    onClick={() => setShowUPI(true)}
                   >
                     <Crown size={18} className="mr-2" />
                     Upgrade to Premium
@@ -223,18 +258,120 @@ export default function PricingPage() {
         </motion.div>
       </div>
 
-      {/* Trust Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="text-center space-y-4 max-w-xl mx-auto"
-      >
-        <p className="text-sm text-muted-foreground font-medium">
-          <Shield size={14} className="inline mr-1 text-emerald-500" />
-          Secure payments • Cancel anytime • Instant activation
-        </p>
-      </motion.div>
+      {/* UPI Payment Modal */}
+      <AnimatePresence>
+        {showUPI && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isUpgrading && setShowUPI(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
+            >
+              <div className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar">
+                <div className="text-center space-y-2">
+                  <div className="h-12 w-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600">
+                    <Zap size={24} />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 leading-tight">Scan to Pay ₹199</h3>
+                  <p className="text-[13px] text-muted-foreground font-medium px-4 leading-relaxed">Use any UPI app like GPay, PhonePe, or Paytm</p>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-[24px] flex flex-col items-center gap-4 border border-slate-100">
+                  <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                    {/* Universal UPI QR Code */}
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=haris.imam1701@oksbi&pn=Haris%20Imam&am=199&cu=INR&tn=Premium%20Plan&mode=02&purpose=00`)}`}
+                      alt="UPI QR Code"
+                      className="w-40 h-40 md:w-44 md:h-44 rounded-lg"
+                    />
+                  </div>
+
+                  <div className="w-full space-y-3">
+
+
+                    <div className="relative group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setPaymentScreenshot(e.target.files?.[0] || null)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      />
+                      <div className={`flex flex-col items-center justify-center gap-2 w-full py-5 border-2 border-dashed rounded-3xl transition-all duration-300 ${paymentScreenshot
+                        ? 'border-emerald-400 bg-emerald-50 text-emerald-700 shadow-inner'
+                        : 'border-slate-200 bg-white hover:border-blue-500 hover:bg-blue-50/30 text-slate-400 hover:text-blue-600'
+                        }`}>
+                        {paymentScreenshot ? (
+                          <>
+                            <div className="h-8 w-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                              <Check size={16} strokeWidth={3} />
+                            </div>
+                            <span className="text-[11px] font-black truncate max-w-[180px]">{paymentScreenshot.name}</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-8 w-8 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                              <Camera size={16} />
+                            </div>
+                            <span className="text-[11px] font-black uppercase tracking-[0.1em]">Upload Transfer Receipt</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="w-full">
+                    <a
+                      href={`upi://pay?pa=haris.imam1701@oksbi&pn=Haris%20Imam&am=199&cu=INR&tn=Premium%20Plan`}
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-slate-200 rounded-xl text-[11px] font-black text-slate-600 hover:bg-slate-50 transition-colors md:hidden"
+                    >
+                      <Zap size={14} className="text-blue-600" />
+                      PAY VIA INSTALLED APP
+                    </a>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleUpgrade}
+                    disabled={isUpgrading}
+                    className="w-full py-7 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-xl shadow-slate-200 transition-all active:scale-95"
+                  >
+                    {isUpgrading ? (
+                      <><Loader2 className="animate-spin mr-2" /> Verifying Payment...</>
+                    ) : (
+                      "I have paid & want to unlock"
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowUPI(false)}
+                    disabled={isUpgrading}
+                    className="w-full text-slate-400 font-bold hover:text-slate-600 text-[13px]"
+                  >
+                    Cancel Payment
+                  </Button>
+                </div>
+
+                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                  <p className="text-[10px] text-center text-blue-700 font-bold leading-relaxed">
+                    Note: Verification takes up to 24 hrs. Please ensure the screenshot clearly shows the Transaction ID/UTR number.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+
     </div>
   );
 }
