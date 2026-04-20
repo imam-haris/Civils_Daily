@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, ArrowRight, ArrowLeft, RefreshCw, 
   HelpCircle, CheckCircle2, XCircle, Loader2, Sparkles,
-  BookOpen, Timer, ListChecks
+  BookOpen, Timer, ListChecks, ShieldCheck, Lock
 } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { createClient } from '@/lib/supabase/client';
 
 interface Question {
   id: number;
@@ -22,6 +24,8 @@ interface Question {
 }
 
 export default function DailyQuiz() {
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -31,9 +35,23 @@ export default function DailyQuiz() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Check authentication on mount
   useEffect(() => {
-    fetchQuiz();
+    const checkAuth = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setAuthLoading(false);
+    };
+    checkAuth();
   }, []);
+
+  // Only fetch quiz if user is authenticated
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchQuiz();
+    }
+  }, [authLoading, user]);
 
   const fetchQuiz = async () => {
     setIsLoading(true);
@@ -100,6 +118,85 @@ export default function DailyQuiz() {
   };
 
   const score = results.filter(r => r.correct).length;
+
+  // Auth loading state
+  if (authLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-8">
+        <div className="relative">
+          <Loader2 className="animate-spin text-blue-600" size={64} />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Checking access</h2>
+          <p className="text-muted-foreground font-medium">Verifying your credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Login required gate
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh] py-12 px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
+        >
+          <Card className="border-none shadow-2xl bg-white overflow-hidden relative">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-indigo-600" />
+
+            <CardHeader className="space-y-6 text-center pt-12 pb-4">
+              <div className="mx-auto relative">
+                <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center shadow-inner">
+                  <Lock size={36} className="text-blue-600" />
+                </div>
+                <div className="absolute -top-1 -right-1 h-7 w-7 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                  <ShieldCheck size={14} className="text-white" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Login Required</CardTitle>
+                <p className="text-sm text-muted-foreground font-medium leading-relaxed max-w-[300px] mx-auto">
+                  You need to be signed in to attempt the Daily Quiz. Authenticate to track your progress and compete.
+                </p>
+              </div>
+            </CardHeader>
+
+            <CardContent className="px-10 pb-10 space-y-4">
+              <div className="grid grid-cols-3 gap-3 py-4">
+                {[
+                  { icon: BookOpen, label: 'Learn', desc: 'Daily MCQs' },
+                  { icon: Timer, label: 'Track', desc: 'Your Speed' },
+                  { icon: Trophy, label: 'Compete', desc: 'Get Ranked' },
+                ].map((item, i) => (
+                  <div key={i} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                    <item.icon size={20} className="text-blue-600" />
+                    <span className="text-[10px] font-black uppercase tracking-tight text-slate-700">{item.label}</span>
+                    <span className="text-[9px] font-semibold text-muted-foreground">{item.desc}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Link href="/login" className="block">
+                <Button className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl text-base shadow-xl shadow-slate-200 group transition-all hover:scale-[1.02] active:scale-95 cursor-pointer">
+                  Sign In to Start Quiz
+                  <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </CardContent>
+
+            <CardFooter className="bg-slate-50 border-t py-5 flex justify-center">
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                Civils Daily &bull; Secure Access
+              </p>
+            </CardFooter>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
